@@ -32,7 +32,3 @@ android {
         disable 'InvalidPackage'
     }
 }
-
-dependencies {
-    implementation 'nl.bravobit:android-ffmpeg:1.1.5'
-}
