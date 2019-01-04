@@ -1,17 +1,12 @@
 package com.pyozer.reverseaudio;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
 import io.flutter.plugin.common.PluginRegistry.Registrar;
+import nl.bravobit.ffmpeg.FFcommandExecuteResponseHandler;
+import nl.bravobit.ffmpeg.FFmpeg;
 
 /**
  * ReverseAudioPlugin
@@ -22,12 +17,25 @@ public class ReverseAudioPlugin implements MethodCallHandler {
      */
     public static void registerWith(Registrar registrar) {
         final MethodChannel channel = new MethodChannel(registrar.messenger(), "reverse_audio");
-        channel.setMethodCallHandler(new ReverseAudioPlugin());
+        channel.setMethodCallHandler(new ReverseAudioPlugin(registrar));
+    }
+
+    private final Registrar mRegistrar;
+
+    ReverseAudioPlugin(Registrar registrar) {
+        this.mRegistrar = registrar;
     }
 
     @Override
     public void onMethodCall(MethodCall call, final Result result) {
         if (call.method.equals("reverseFile")) {
+
+            FFmpeg ffmpeg = FFmpeg.getInstance(mRegistrar.context());
+
+            if (!ffmpeg.isSupported()) {
+                result.error("UNSUPPORTED", "FFMPEG is not supported !", null);
+                return;
+            }
 
             String originPath = call.argument("originPath");
             String destPath = call.argument("destPath");
@@ -37,67 +45,38 @@ public class ReverseAudioPlugin implements MethodCallHandler {
                 return;
             }
 
-            byte[] reversedBuffer = new byte[2048];
+            String command = "-i " + originPath + " -af areverse " + destPath + " -y";
+            String[] args = command.split(" ");
 
-            try {
-                File srcFile = new File(originPath);
-                File outFile = new File(destPath);
-                FileInputStream is = new FileInputStream(srcFile);
-                reversedBuffer = convertStreamToByteArray(is, 2048);
+            // to execute "ffmpeg -version" command you just need to pass "-version"
+            ffmpeg.execute(args, new FFcommandExecuteResponseHandler() {
+                @Override
+                public void onSuccess(String message) {
+                    result.success(message);
+                }
 
-                FileOutputStream fileOutputStream = new FileOutputStream(outFile);
-                fileOutputStream.write(reversedBuffer);
+                @Override
+                public void onProgress(String message) {
 
-                fileOutputStream.close();
-                is.close();
+                }
 
-                result.success(destPath);
-            } catch (Exception e) {
-                e.printStackTrace();
-                result.error("REVERSE_FAIL", e.getMessage(), null);
-            }
+                @Override
+                public void onFailure(String message) {
+                    result.error("FFMPEG_FAIL", message, null);
+                }
+
+                @Override
+                public void onStart() {
+
+                }
+
+                @Override
+                public void onFinish() {
+
+                }
+            });
         } else {
             result.notImplemented();
         }
-    }
-
-    private static byte[] convertStreamToByteArray(InputStream is, int size) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        byte[] buff = new byte[size];
-        int i = Integer.MAX_VALUE;
-        while ((i = is.read(buff, 0, buff.length)) > 0) {
-            baos.write(buff, 0, i);
-        }
-
-        return reverse(baos.toByteArray());
-    }
-
-
-    private static byte[] reverse(byte[] array) {
-        if (array == null) {
-            return null;
-        }
-
-        byte[] result = new byte[array.length];
-
-        final int headerSize = 1024;
-
-        System.out.println(headerSize);
-
-        for (int i = 0; i < headerSize; i++) { // copy header
-            result[i] = array[i];
-        }
-
-        int length = array.length;
-
-        for (int l = length - 1, k = headerSize; l - 1 >= headerSize && k + 1 < length; l -= 2, k += 2) {
-            byte byte1 = array[l - 1];
-            byte byte2 = array[l];
-
-            result[k] = byte1;
-            result[k + 1] = byte2;
-        }
-
-        return result;
     }
 }

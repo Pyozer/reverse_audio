@@ -31,4 +31,12 @@ android {
     lintOptions {
         disable 'InvalidPackage'
     }
+    aaptOptions {
+        ignoreAssetsPattern "!*ffprobe"
+        ignoreAssetsPattern "!x86"
+    }
+}
+
+dependencies {
+    implementation 'nl.bravobit:android-ffmpeg:1.1.5'
 }
